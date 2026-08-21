@@ -12,7 +12,10 @@ export interface MailboxViewRow {
   subject: string;
   preview: string;
   status: 'scheduled' | 'sent';
+  rawStatus: EmailJobStatus;
   timestamp: string;
+  previewUrl: string | null;
+  error: string | null;
 }
 
 export interface MailboxCounts {
@@ -59,7 +62,10 @@ function jobToRow(job: EmailJob, tab: MailboxTab): MailboxViewRow {
     subject: job.subject,
     preview: stripHtml(job.body).slice(0, 200),
     status: isScheduled ? 'scheduled' : 'sent',
+    rawStatus: job.status,
     timestamp: isScheduled ? formatTimestamp(scheduled) : formatTimestamp(sent ?? scheduled),
+    previewUrl: job.previewUrl,
+    error: job.error,
   };
 }
 
