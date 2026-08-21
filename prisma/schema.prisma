@@ -1,0 +1,92 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EmailJobStatus {
+  pending
+  queued
+  processing
+  sent
+  failed
+}
+
+model User {
+  id           String    @id @default(cuid())
+  googleId     String?   @unique @map("google_id")
+  email        String    @unique
+  name         String
+  avatarUrl    String?   @map("avatar_url")
+  passwordHash String?   @map("password_hash")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  batches Batch[]
+
+  @@map("users")
+}
+
+model Sender {
+  id                 String     @id @default(cuid())
+  name               String
+  email              String     @unique
+  smtpConfig         Json?      @map("smtp_config")
+  maxPerHourOverride Int?       @map("max_per_hour_override")
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+
+  emailJobs EmailJob[]
+
+  @@map("senders")
+}
+
+model Batch {
+  id             String     @id @default(cuid())
+  userId         String?    @map("user_id")
+  subject        String
+  body           String
+  startTime      DateTime   @map("start_time")
+  delayMs        Int        @map("delay_ms")
+  hourlyLimit    Int        @map("hourly_limit")
+  idempotencyKey String?    @map("idempotency_key")
+  createdAt      DateTime   @default(now()) @map("created_at")
+
+  user      User?      @relation(fields: [userId], references: [id])
+  emailJobs EmailJob[]
+
+  @@index([idempotencyKey])
+  @@map("batches")
+}
+
+model EmailJob {
+  id              String         @id @default(cuid())
+  batchId         String         @map("batch_id")
+  senderId        String?        @map("sender_id")
+  recipient       String
+  subject         String
+  body            String
+  fromEmail       String?        @map("from_email")
+  attachments     Json?          @map("attachments")
+  scheduledAt     DateTime       @map("scheduled_at")
+  status          EmailJobStatus @default(pending)
+  bullmqJobId     String?        @unique @map("bullmq_job_id")
+  sentAt          DateTime?      @map("sent_at")
+  error           String?
+  attempts        Int            @default(0)
+  rescheduleCount Int            @default(0) @map("reschedule_count")
+  previewUrl      String?        @map("preview_url")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  batch  Batch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  sender Sender? @relation(fields: [senderId], references: [id])
+
+  @@index([batchId])
+  @@index([status, scheduledAt])
+  @@map("email_jobs")
+}
