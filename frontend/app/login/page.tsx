@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
-export default function LoginPage() {
+function LoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login, register, loginWithGoogle } = useAuth();
@@ -124,6 +124,14 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="auth-shell"><div className="auth-card">Loading…</div></div>}>
+      <LoginInner />
+    </Suspense>
   );
 }
 
