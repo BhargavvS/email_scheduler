@@ -23,7 +23,7 @@ export default function EmailRow({ row }: { row: MailboxViewRow }) {
             ↗ View in Ethereal
           </a>
         ) : row.status === 'sent' && !row.previewUrl ? (
-          <span className="email-preview-hint">Sent (no Ethereal preview — using mock transport)</span>
+          <span className="email-preview-hint">Not Sent</span>
         ) : null}
         {isFailed && row.error ? <div className="email-error-text">{row.error}</div> : null}
       </div>
