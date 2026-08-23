@@ -240,6 +240,35 @@ make help                      # list targets
 
 ## Architecture Overview
 
+"This is the architecture for the email job scheduler I built for the ReachInbox assignment — a system that lets a user schedule batches of emails, with guarantees around durability, rate limiting, and no duplicate or lost sends even across server restarts. I'll walk through it layer by layer."
+
+1. Application Layer:
+
+"The frontend is a Next.js app on port 3000, talking to an Express + TypeScript API on port 4000 over REST. Every request first passes through an auth middleware that supports both Google OAuth and JWT-based sessions. Once authenticated, requests hit the Batch Service, which is the entry point for scheduling — it validates the payload and wraps the job creation in a DB transaction."
+
+2. Why commit-first (the core design decision):
+
+"The most important design decision here is that I never enqueue a job into BullMQ before it's committed to Postgres. Postgres is my source of truth. So the flow is: validate → write to Postgres → then push to Redis/BullMQ as a delayed job. This means if Redis crashes or is flushed, I haven't lost the intent to send — I can always rebuild queue state from the DB."
+
+3. Reconciliation Service (this is usually the differentiator):
+
+"Because Redis and Postgres are two separate systems, they can drift — a job might be marked 'queued' in Postgres but missing from BullMQ, say if the process crashed between the DB write and the Redis push. So I built a Reconciliation Service that periodically scans Postgres for pending/queued/stuck jobs, cross-checks them against BullMQ's actual state in Redis, and re-queues or repairs anything inconsistent. This is what makes the system restart-safe and crash-safe rather than just 'happy path' safe."
+
+4. BullMQ Scheduling Layer:
+
+"Redis 7 with AOF persistence backs BullMQ, so the queue itself survives restarts too — that's a second layer of durability on top of Postgres. I split jobs into per-sender queues — Sender Queue A, B, N — rather than one global queue. This isolates failures and rate limits per sending identity, so one bad sender domain doesn't block others."
+
+5. Execution Layer (Workers):
+
+"Each queue has a dedicated Worker with configurable concurrency — so I can tune throughput per sender independently. Before a worker actually calls sendMail, it checks a Redis Lua rate limiter. I used Lua specifically because rate limiting needs to be atomic — a plain 'GET count, check limit, INCR' in application code has a race condition when multiple workers check concurrently. The Lua script runs the check-and-increment as a single atomic operation on Redis's side, enforcing global limits, per-sender limits, and per-batch limits together."
+
+6. Closing the loop:
+
+"Workers send via Ethereal SMTP through Nodemailer — that's a fake SMTP for safe testing, gives me a previewUrl instead of real delivery. After sending, the worker writes status, sentAt, and previewUrl back to Postgres, closing the loop back to the source of truth."
+
+
+"So the overall philosophy is: Postgres is truth, Redis/BullMQ is a durable but recoverable cache of scheduling state, and the Reconciliation Service is the safety net that keeps the two in sync — which is what lets this survive restarts without losing or duplicating jobs."
+
 ### 7.1 Data Model
 
 ```
