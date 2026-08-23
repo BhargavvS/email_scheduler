@@ -259,6 +259,8 @@ email_jobs   (id, batchId FK cascade, senderId FK, recipient, subject, body, fro
 
 ### 7.2 Scheduling Flow (End-to-End)
 
+**The architecture diagrams are attached under the Architecture folder**
+
 ```
 Browser Compose             API                          DB (Postgres)              Redis (BullMQ)               Worker
 ─────────────               ───                          ─────────────              ──────────────               ──────
@@ -287,6 +289,7 @@ POST /api/batches ───────► zod + parseRecipients() ─┐
                                                       │       ORDER BY scheduledAt ASC LIMIT 20
                           GET /api/emails/sent ───────┼─► status IN (sent,failed) ORDER BY sentAt DESC
 ```
+
 
 **Key ordering in `src/services/batchService.ts:198`:** nested `prisma.batch.create({ emailJobs: { create } })` is one transaction — **DB commit happens before any `queue.add`**. If Redis is down, rows stay `pending`, response is `status: partially_enqueued` (`src/services/batchService.ts:235`), and B6 reconciliation will re-enqueue once Redis returns. Client **never retries** `POST /api/batches` on enqueue failure — it would create a duplicate batch.
 
@@ -448,6 +451,4 @@ Set `MAX_EMAILS_PER_HOUR_PER_SENDER=5` in `.env`, restart worker, schedule 10 fo
 | `make docker-build` fails | Missing `.dockerignore` or old Docker | `docker build -t reachinbox-scheduler-backend -f Dockerfile .` manually |
 
 ---
-
-*Generated after a full repo pass (`src/`, `prisma/`, `frontend/`, `scripts/`, `docker-compose.yml`). For the ≤5 min demo, record the B6 restart and the rate-limit deferral — they are the scenarios most likely to reveal a bug.*
 
