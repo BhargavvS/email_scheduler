@@ -6,6 +6,8 @@ import { ApiError, getEmailJobs } from '@/lib/api';
 import type { EmailJob, EmailJobStatus, EmailJobsPage } from '@/types/batch';
 import type { MailboxTab } from '@/types/email';
 
+
+// mailbox interface for the view
 export interface MailboxViewRow {
   id: string;
   recipient: string;
