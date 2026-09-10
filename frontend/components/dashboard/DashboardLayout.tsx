@@ -17,12 +17,19 @@ export default function DashboardLayout({
   counts,
   children,
 }: DashboardLayoutProps) {
+  const title = activeTab === 'scheduled' ? 'Scheduled' : 'Sent';
+  const subtitle =
+    activeTab === 'scheduled'
+      ? 'Emails queued to send'
+      : 'Emails already delivered';
+
   return (
     <div className="dashboard">
       <Sidebar activeTab={activeTab} onTabChange={onTabChange} counts={counts} />
       <main className="dashboard-main">
         <header className="dashboard-header">
-          <h1>Homepage</h1>
+          <h1>{title}</h1>
+          <p>{subtitle}</p>
         </header>
         {children}
       </main>

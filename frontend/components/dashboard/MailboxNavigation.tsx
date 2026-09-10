@@ -22,7 +22,7 @@ export default function MailboxNavigation({
 }: MailboxNavigationProps) {
   return (
     <nav className="nav-group" aria-label="Mailbox">
-      <div className="nav-label">CORE</div>
+      <div className="nav-label">Mailbox</div>
       {TABS.map(({ key, label, Icon }) => {
         const count = counts ? (key === 'scheduled' ? counts.scheduled : counts.sent) : null;
         return (

@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "ReachInbox Scheduler — DB as Source of Truth",
+    "quality_profile": "showcase",
+    "viewBox": [1180, 550],
+    "views": [
+      { "id": "primary-path", "label": "Primary scheduling path", "focus": ["browser", "frontend", "api", "batchService", "pg", "queue", "worker", "mailer"], "note": "From compose to DB commit to delayed queue tick and delivery." },
+      { "id": "resilience", "label": "Resilience & recovery", "focus": ["pg", "redis", "queue", "reconcile", "worker"], "note": "How reconciliation heals drift between Postgres truth and BullMQ clock." },
+      { "id": "rate-limit", "label": "Rate limiting", "focus": ["worker", "rateLimiter", "redis", "queue"], "note": "Lua atomic caps and per-sender pacing before any send." }
+    ]
+  },
+  "components": [
+    { "id": "browser", "type": "external", "label": "Browser / User", "sublabel": "Compose & Mailbox", "pos": [40, 145], "size": [132, 60] },
+    { "id": "frontend", "type": "frontend", "label": "Next.js Frontend", "sublabel": ":3000 • TipTap + CSV", "pos": [230, 145], "size": [158, 60] },
+    { "id": "api", "type": "backend", "label": "Express API", "sublabel": ":4000 • REST + zod", "pos": [450, 145], "size": [152, 60] },
+    { "id": "auth", "type": "security", "label": "Auth Middleware", "sublabel": "JWT + Google OAuth2", "pos": [450, 35], "size": [152, 60], "tag": "requireAuth" },
+    { "id": "batchService", "type": "backend", "label": "Batch Service", "sublabel": "parseRecipients + txn", "pos": [670, 145], "size": [160, 60] },
+    { "id": "pg", "type": "database", "label": "PostgreSQL 16", "sublabel": "Prisma • email_jobs truth", "pos": [910, 75], "size": [162, 66] },
+    { "id": "redis", "type": "database", "label": "Redis 7", "sublabel": "AOF • named volume", "pos": [910, 190], "size": [162, 66] },
+    { "id": "queue", "type": "messagebus", "label": "BullMQ Queues", "sublabel": "per-sender • delayed", "pos": [670, 340], "size": [160, 60] },
+    { "id": "worker", "type": "backend", "label": "Email Workers", "sublabel": "per-sender • x5 conc.", "pos": [450, 340], "size": [152, 60] },
+    { "id": "rateLimiter", "type": "security", "label": "Lua Rate Limiter", "sublabel": "global / sender / batch", "pos": [450, 440], "size": [152, 60], "tag": "atomic INCR" },
+    { "id": "reconcile", "type": "backend", "label": "Reconciliation Svc", "sublabel": "startup + 60s sweep", "pos": [910, 340], "size": [162, 60] },
+    { "id": "mailer", "type": "external", "label": "Ethereal SMTP", "sublabel": "Nodemailer :587", "pos": [230, 340], "size": [158, 60], "tag": "previewUrl" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Docker Compose: pgdata / redisdata • appendonly yes", "wraps": ["pg", "redis", "queue"] },
+    { "kind": "security-group", "label": "sg-api • requireAuth • CORS :3000", "wraps": ["api", "auth", "batchService", "worker", "reconcile", "rateLimiter"] }
+  ],
+  "connections": [
+    { "id": "browser-to-frontend", "from": "browser", "to": "frontend", "label": "HTTPS :3000", "variant": "emphasis", "labelDy": -32 },
+    { "id": "frontend-to-api", "from": "frontend", "to": "api", "label": "REST + Bearer JWT", "labelDy": -32 },
+    { "id": "auth-to-api", "from": "auth", "to": "api", "label": "verify JWT / cookie", "variant": "security", "fromSide": "right", "toSide": "right", "via": [[634, 65], [634, 175]], "labelAt": [648, 109] },
+    { "id": "api-to-batch", "from": "api", "to": "batchService", "label": "POST /api/batches", "labelAt": [636, 219] },
+    { "id": "batch-to-pg", "from": "batchService", "to": "pg", "label": "txn commit pending", "fromSide": "right", "toSide": "left", "labelAt": [860, 50] },
+    { "id": "batch-to-queue", "from": "batchService", "to": "queue", "label": "queue.add delayed", "fromSide": "bottom", "toSide": "top", "labelAt": [778, 275] },
+    { "id": "queue-to-worker", "from": "queue", "to": "worker", "label": "tick → active", "fromSide": "left", "toSide": "right", "labelDy": -26 },
+    { "id": "worker-to-limiter", "from": "worker", "to": "rateLimiter", "label": "RESERVE Lua", "variant": "security", "fromSide": "bottom", "toSide": "top", "labelAt": [554, 436] },
+    { "id": "worker-to-mailer", "from": "worker", "to": "mailer", "label": "SMTP sendMail", "fromSide": "left", "toSide": "right", "labelDy": -26 },
+    { "id": "worker-to-pg", "from": "worker", "to": "pg", "label": "sent + previewUrl", "fromSide": "top", "toSide": "top", "via": [[526, 310], [15, 310], [15, 25], [991, 25]], "labelAt": [350, 20] },
+    { "id": "reconcile-to-pg", "from": "reconcile", "to": "pg", "label": "scan pending/queued", "fromSide": "top", "toSide": "right", "via": [[991, 310], [1085, 310], [1085, 108]], "labelAt": [1085, 170] },
+    { "id": "reconcile-to-queue", "from": "reconcile", "to": "queue", "label": "re-enqueue missing", "fromSide": "left", "toSide": "right", "labelAt": [870, 325] }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Core Invariant", "items": ["Postgres email_jobs is source of truth; BullMQ + Redis is only the scheduling clock", "Frontend never queries Redis — counts, tabs and previews read DB", "DB commit before enqueue → pending survives Redis crash; status: partially_enqueued on Redis-down"] },
+    { "dot": "emerald", "title": "Execution & Rate Limiting", "items": ["Per-sender BullMQ queues on Redis sorted set • limiter max:1 / 2s floor + WORKER_CONCURRENCY 5 per worker", "Lua RESERVE enforces global 200/h, per-sender 50/h and per-batch hourlyLimit atomically • defer to next hour with stagger", "Fail-closed on Redis unavailable → 30s delayed retry; never sends unconstrained"] },
+    { "dot": "amber", "title": "Resilience & Observability", "items": ["Redis AOF + named volumes survive restart; reconciliation heals pending / queued-unknown / stuck processing on boot and every 60s", "Overdue promotion compensates 2s limiter drift; idempotent jobId email-{cuid} prevents duplicate sends", "GET /health checks pg, redis and worker:heartbeat; pino structured logs + /api/emails/scheduled|sent paginated"] }
+  ]
+}

@@ -16,6 +16,7 @@ export interface RateLimitResult {
 const RATE_LIMIT_TTL_SECONDS = 3700;
 const CHECK_TIMEOUT_MS = 3000;
 
+
 /**
  * Atomic 3-cap reservation. Reads all counters first and only INCRs any of
  * them if every counter is still under its cap — so a blocked request leaves
@@ -38,6 +39,10 @@ return {1, 'ok'}
 /** UTC hour bucket: `YYYY-MM-DDTHH`. Shared by all three counters. */
 export function hourBucket(date: Date = new Date()): string {
   return date.toISOString().slice(0, 13);
+}
+
+export function dayBucket(date = new Date()) {
+     return date.toISOString().slice(0,10)
 }
 
 /**
@@ -68,6 +73,7 @@ export async function checkAndReserveSlot(
   const batchLimit = batch?.hourlyLimit ?? env.MAX_EMAILS_PER_HOUR;
 
   const bucket = hourBucket();
+  const Daybucket = dayBucket();
   const keys = [
     `rl:global:${bucket}`,
     `rl:sender:${senderId}:${bucket}`,

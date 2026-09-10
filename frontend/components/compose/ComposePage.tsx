@@ -56,7 +56,7 @@ export default function ComposePage() {
 
   // Non-blocking error banner — form stays usable with FALLBACK_CONFIG
   const configErrorBanner = load.error ? (
-    <div className="compose-load-error" style={{ marginBottom: '12px' }}>
+    <div className="compose-load-error">
       <p>{load.error}</p>
       <button type="button" className="schedule-retry" onClick={retryLoad}>
         Retry
@@ -114,7 +114,7 @@ export default function ComposePage() {
         <div className="compose-main">
           <section className="compose-card">
             <div className="compose-card-head">
-              <span className="compose-card-icon">👥</span>
+              <span className="compose-card-index">01</span>
               <div>
                 <h3>Recipients</h3>
                 <p>Add people you want to reach</p>
@@ -127,7 +127,7 @@ export default function ComposePage() {
 
           <section className="compose-card">
             <div className="compose-card-head">
-              <span className="compose-card-icon">✉️</span>
+              <span className="compose-card-index">02</span>
               <div>
                 <h3>Message</h3>
                 <p>Subject and body — supports rich text</p>
@@ -139,7 +139,7 @@ export default function ComposePage() {
 
           <section className="compose-card">
             <div className="compose-card-head">
-              <span className="compose-card-icon">📎</span>
+              <span className="compose-card-index">03</span>
               <div>
                 <h3>Attachments</h3>
                 <p>Optional files for every recipient</p>
